@@ -31,7 +31,3 @@ Please enable **SPI** and **I2C** using **raspi-config**
 sudo raspi-config
 ```
 Navigate to **Interface Options** and then enable **SPI** and **I2C**.
-
-## Fall 2022
-
-<img src="https://github.com/neurobionics/rob311/blob/main/fall_2022.png" width="1024">
