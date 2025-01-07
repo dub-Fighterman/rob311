@@ -25,7 +25,7 @@ from ps4_controller_api import PS4InputHandler
 from loop import SoftRealtimeLoop
 from MBot.Messages.message_defs import mo_states_dtype, mo_cmds_dtype
 from MBot.SerialProtocol.protocol import SerialProtocol
-from ball_kinematics import compute_motor_torques  # Import torque computation
+from ballbot_kinematics import compute_motor_torques  # Import torque computation
 from DataLogger import dataLogger  # Import data logger for logging data
 import numpy as np
 

@@ -1,5 +1,5 @@
 """
-ROB 311 - Ball-bot kinetics and kinematics demo
+Ball-bot kinetics
 
 This program uses a soft realtime loop to enforce loop timing. Soft real time loop is a  class
 designed to allow clean exits from infinite loops with the potential for post-loop cleanup operations executing.
