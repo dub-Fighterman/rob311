@@ -57,6 +57,8 @@ def compute_stabilization_torques(theta_x, theta_y, desired_theta_x=0.0, desired
     Tx = KP_THETA_X * error_x
     Ty = KP_THETA_Y * error_y
 
+    Tz = 0.0  # No yaw control for now
+
     # Saturate torques to prevent excessive output
     Tx = np.clip(Tx, -MAX_PLANAR_DUTY, MAX_PLANAR_DUTY)
     Ty = np.clip(Ty, -MAX_PLANAR_DUTY, MAX_PLANAR_DUTY)

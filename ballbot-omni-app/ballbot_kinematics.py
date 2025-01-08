@@ -24,12 +24,12 @@ def register_topics(ser_dev:SerialProtocol):
 
 # ---------------------------------------------------------------------------
 
-FREQ = 200
-DT = 1/FREQ
-
-RW = 0.048
-RK = 0.1210
-ALPHA = np.deg2rad(45)
+# Constants
+FREQ = 200  # Frequency in Hz
+DT = 1 / FREQ  # Time step
+RK = 0.1192 # Ball radius (m)
+RW = 0.0488  # Wheel radius (m)
+ALPHA = np.deg2rad(45)  # Motor inclination angle (radians)
 
 # ---------------------------------------------------------------------------
 
@@ -60,9 +60,9 @@ def compute_motor_torques(Tx, Ty, Tz):
     T3: Motor Torque 3
     '''
 
-    T1 = (-0.3333) * (Tz - (2.8284 * Ty))
-    T2 = (-0.3333) * (Tz + (1.4142 * (Ty + 1.7320 * Tx)))
-    T3 = (-0.3333) * (Tz + (1.4142 * (Ty - 1.7320 * Tx)))
+    T1 = (1 / 3) * (Tz - (2 * Ty) / cos_alpha)
+    T2 = (1 / 3) * (Tz + (1 / np.cos(alpha)) * (-np.sqrt(3) * Tx + Ty))
+    T3 = (1 / 3) * (Tz + (1 / np.cos(alpha)) * (np.sqrt(3) * Tx + Ty))
 
     return T1, T2, T3
 
