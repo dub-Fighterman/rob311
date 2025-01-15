@@ -189,19 +189,19 @@ int main() {
                 // IMU DMP DATA: CHECK
                 // New Bosch IMU's have a different orientation, hence the roll & pitch swap and negative signs
                 // Axis transformation from the IMU space to Ballbot space is taken care of within the pico
-                mo_state.theta_roll = 1.0 * (mbot_imu_data.rpy[1] - theta_roll_offset);
-                mo_state.theta_pitch = -1.0 * (mbot_imu_data.rpy[0] - theta_pitch_offset);
+                mo_state.theta_roll = -1.0 * (mbot_imu_data.rpy[1] - theta_roll_offset);
+                mo_state.theta_pitch = 1.0 * (mbot_imu_data.rpy[0] - theta_pitch_offset);
                 mo_state.theta_yaw = 1.0 * (mbot_imu_data.rpy[2] - theta_pitch_offset);
                 
                 // MOTOR STATES: CHECK
-                mo_state.psi_1 = compute_psi(rc_encoder_read_count(1));
-                mo_state.dpsi_1 = compute_dpsi(rc_encoder_read_delta(1), DT_S);
+                mo_state.psi_1 = rc_encoder_read_count(1);
+                mo_state.dpsi_1 = rc_encoder_read_delta(1);
 
-                mo_state.psi_2 = compute_psi(rc_encoder_read_count(2));
-                mo_state.dpsi_2 = compute_dpsi(rc_encoder_read_delta(2), DT_S);
+                mo_state.psi_2 = rc_encoder_read_count(2);
+                mo_state.dpsi_2 = rc_encoder_read_delta(2);
 
-                mo_state.psi_3 = compute_psi(rc_encoder_read_count(3));
-                mo_state.dpsi_3 = compute_dpsi(rc_encoder_read_delta(3), DT_S);
+                mo_state.psi_3 = rc_encoder_read_count(3);
+                mo_state.dpsi_3 = rc_encoder_read_delta(3);
 
                 // SEND STATES
                 comms_write_topic(121, &mo_state);
