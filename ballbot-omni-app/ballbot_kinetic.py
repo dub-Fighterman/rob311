@@ -1,5 +1,5 @@
 """
-Ball-bot Kinematics Module
+Ball-bot Kinetic Module
 ==========================
 
 This program takes the ball-bot body frame torque Tx, Ty, Tz along x, y, z axes respectively
