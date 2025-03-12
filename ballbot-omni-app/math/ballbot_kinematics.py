@@ -20,35 +20,23 @@ ALPHA = np.deg2rad(45)  # Motor inclination angle (radians)
 
 # ---------------------------------------------------------------------------
 
-def compute_motor_torques(Tx, Ty, Tz):
-    '''
+def compute_ball_rotation(psi1, psi2, psi3):
+    """
+    Computes the ball's rotational velocities (phi_x, phi_y, phi_z)
+    given the wheel velocities (psi1, psi2, psi3).
+    
     Parameters:
-    ----------
-    Tx: Torque along x-axis
-    Ty: Torque along y-axis
-    Tz: Torque along z-axis
-
+    -----------
+    psi1, psi2, psi3 : float
+        Wheel angular velocities
+    
     Returns:
     --------
-            Ty
-            T1
-            |
-            |
-            |
-            . _ _ _ _ Tx
-           / \
-          /   \
-         /     \
-        /       \
-       T2       T3
-
-    T1: Motor Torque 1
-    T2: Motor Torque 2
-    T3: Motor Torque 3
-    '''
-
-    T1 = (1 / 3) * (Tz - (2 * Ty) / np.cos(ALPHA))
-    T2 = (1 / 3) * (Tz + (1 / np.cos(ALPHA)) * (-np.sqrt(3) * Tx + Ty))
-    T3 = (1 / 3) * (Tz + (1 / np.cos(ALPHA)) * (np.sqrt(3) * Tx + Ty))
-
-    return T1, T2, T3
+    phi_x, phi_y, phi_z : float
+        Ball rotational velocities
+    """
+    phi_x = (2 / 3) * (RW / RK) * (psi2 - psi3)
+    phi_y = (np.sqrt(2) / 3) * (RW / RK) * (-2 * psi1 + psi2 + psi3)
+    phi_z = (np.sqrt(2) / 3) * (RW / RK) * (psi1 + psi2 + psi3)
+    
+    return phi_x, phi_y, phi_z
