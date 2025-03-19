@@ -1,10 +1,10 @@
 """
-ROB 311 - Ball-bot Sensor Reading Demo
-This program demonstrates a soft real-time control loop for the ball-bot project.
-It ensures loop timing using a SoftRealtimeLoop and manages communication with the hardware via serial.
+ROB 311 - Ball-bot Sensing and Reading Demo
+This program uses a soft realtime loop to enforce loop timing. Soft real time loop is a  class
+designed to allow clean exits from infinite loops with the potential for post-loop cleanup operations executing.
 
-Authors: Yilin Ma, Senthur Raj, Gray Thomas, Yves Nazon, Xiaonan Huang, and Elliott Rouse 
-Neurobionics Lab / Locomotor Control Lab / Hybrid Dynamic Robtoics Lab
+Authors: Senthur Raj, Gray Thomas, Yves Nazon and Elliott Rouse 
+Neurobionics Lab / Locomotor Control Lab
 """
 
 import sys
@@ -12,100 +12,122 @@ import threading
 import time
 import numpy as np
 from threading import Thread
-from src.Messages.message_defs import mo_states_dtype, mo_cmds_dtype
-from src.SerialProtocol.protocol import SerialProtocol
-from src.loop import SoftRealtimeLoop
-from src.DataLogger import dataLogger
+from MBot.Messages.message_defs import mo_states_dtype, mo_cmds_dtype, mo_pid_params_dtype
+from MBot.SerialProtocol.protocol import SerialProtocol
+from loop import SoftRealtimeLoop
+from DataLogger import dataLogger
 
-# Control loop frequency (Hz)
 FREQ = 200
-DT = 1 / FREQ  # Loop time step in seconds
+DT = 1/FREQ
 
-def register_topics(ser_dev: SerialProtocol):
-    """
-    Register the data topics for serial communication.
-    This maps specific message IDs to their corresponding serialization/deserialization functions.
+RW = 0.048
+RK = 0.1210
+ALPHA = np.deg2rad(45)
+
+def compute_motor_torques(Tx, Ty, Tz):
     
-    :param ser_dev: Instance of SerialProtocol to manage communication
-    """
+    T1 = (1 / 3) * (Tz - (2 * Ty) / np.cos(ALPHA))
+    T2 = (1 / 3) * (Tz + (1 / np.cos(ALPHA)) * (-np.sqrt(3) * Tx + Ty))
+    T3 = (1 / 3) * (Tz + (1 / np.cos(ALPHA)) * (np.sqrt(3) * Tx + Ty))
+
+
+    return T1, T2, T3
+
+def register_topics(ser_dev:SerialProtocol):
+    # Mo :: Commands, States
     ser_dev.serializer_dict[101] = [lambda bytes: np.frombuffer(bytes, dtype=mo_cmds_dtype), lambda data: data.tobytes()]
     ser_dev.serializer_dict[121] = [lambda bytes: np.frombuffer(bytes, dtype=mo_states_dtype), lambda data: data.tobytes()]
 
 if __name__ == "__main__":
-    # Prompt user for trial number to log data
     trial_num = int(input('Trial Number? '))
-    filename = f'ROB311_Test{trial_num}.txt'
-    dl = dataLogger(filename)  # Initialize data logger
+    filename = 'ROB311_Test%i' % trial_num
+    dl = dataLogger(filename + '.txt')
 
-    # Initialize serial communication with the hardware
     ser_dev = SerialProtocol()
-    register_topics(ser_dev)  # Register message types
+    register_topics(ser_dev)
 
-    # Start serial read thread to handle incoming data
-    serial_read_thread = Thread(target=ser_dev.read_loop, args=(), daemon=True)
+    # Init serial
+    serial_read_thread = Thread(target = SerialProtocol.read_loop, args=(ser_dev,), daemon=True)
     serial_read_thread.start()
 
-    # Define command and state structures
-    commands = np.zeros(1, dtype=mo_cmds_dtype)[0]  # Initialize command structure
-    states = np.zeros(1, dtype=mo_states_dtype)[0]  # Initialize state structure
+    # Local structs
+    commands = np.zeros(1, dtype=mo_cmds_dtype)[0]
+    states = np.zeros(1, dtype=mo_states_dtype)[0]
 
-    # Set initial command to start the system
     commands['start'] = 1.0
 
-    # Allow some time for serial communication to synchronize
+    dpsi = np.zeros((3, 1))
+
+    # Time for comms to sync
     time.sleep(1.0)
-    
-    # Send initial command to the robot
+
     ser_dev.send_topic_data(101, commands)
 
     print('Beginning program!')
-    i = 0  # Loop iteration counter
+    i = 0
 
-    # Main control loop using soft real-time scheduling
+   
+   
     for t in SoftRealtimeLoop(dt=DT, report=True):
         try:
-            # Retrieve the latest sensor data from the robot
             states = ser_dev.get_cur_topic_data(121)[0]
-        except KeyError:
-            continue  # If no data is available, skip this iteration
+        except KeyError as e:
+            continue
 
         if i == 0:
             print('Finished calibration\nStarting loop...')
-            t_start = time.time()  # Record start time
+            t_start = time.time()
 
-        i += 1  # Increment loop counter
-        t_now = time.time() - t_start  # Compute elapsed time
+        i = i + 1
+        t_now = time.time() - t_start
+
+        #dpsi[0] = states['dpsi_1']
+        #dpsi[1] = states['dpsi_2']
+        #dpsi[2] = states['dpsi_3']
+
+        ser_dev.send_topic_data(101, commands)
+        Tx = 0
+        Ty = 0
+        if t_now <= 3:
+            Tz = 0.25
+        
+        if 3 < t_now <= 6:
+            Tz = 0.5
+
+        if 6 < t_now <= 9:
+            Tz = 0.75
+        if 9 < t_now <= 12:
+            Tz = 1
+        T1,T2,T3 = compute_motor_torques (Tx, Ty, Tz)
+
+        commands['motor_1_duty'] = T1
+        commands['motor_2_duty'] = T2
+        commands['motor_3_duty'] = T3
+        ser_dev.send_topic_data(101, commands) 
+
+        # Define variables for saving / analysis here - below you can create variables from the available states
+        theta_x = (states['theta_roll'])  
+        theta_y = (states['theta_pitch'])
+        theta_z = (states['theta_yaw'])
 
         dpsi[0] = states['dpsi_1']
         dpsi[1] = states['dpsi_2']
         dpsi[2] = states['dpsi_3']
 
-        ser_dev.send_topic_data(101, commands)
+        print (dpsi[0])
 
-        # Extract sensor readings of the bot's orientation
-        theta_x = states['theta_roll']  # Roll angle
-        theta_y = states['theta_pitch']  # Pitch angle
-
-        # Construct data array for logging
         # Construct the data matrix for saving - you can add more variables by replicating the format below
-        # Data structure: 
-        # [iteration index, time elapsed, roll angle, pitch angle, angular velocity 1, angular velocity 2, angular velocity 3]
-            # iteration index: Keeps track of loop cycles
-            # time elapsed: Time since the start of data collection
-            # roll angle: Robot's roll angle from IMU
-            # pitch angle: Robot's pitch angle from IMU
-            # angular velocity 1: Angular velocity measurement from wheel 1
-            # angular velocity 2: Angular velocity measurement from wheel 2
-            # angular velocity 3: Angular velocity measurement from wheel 3
-        data = [i, t_now, theta_x, theta_y, dpsi[0], dpsi[1], dpsi[2]]
+        data = [i] + [t_now] + [theta_x] + [theta_y] + [theta_z] + [states['dpsi_1']] + [states['dpsi_2']] + [states['dpsi_3']]
         dl.appendData(data)
 
-    
-    print("Saving data...")
-    dl.writeOut()
-    print("Resetting Motor Commands.")
+        if t_now > 15:
+            break
+
     commands['start'] = 0.0
     commands['motor_1_duty'] = 0.0
     commands['motor_2_duty'] = 0.0
     commands['motor_3_duty'] = 0.0
     ser_dev.send_topic_data(101, commands)
+    print("Saving data...")
+    dl.writeOut()
+    print("Resetting Motor Commands.")
