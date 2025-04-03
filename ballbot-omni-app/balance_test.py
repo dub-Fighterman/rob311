@@ -7,6 +7,7 @@ from MBot.Messages.message_defs import mo_states_dtype, mo_cmds_dtype, mo_pid_pa
 from MBot.SerialProtocol.protocol import SerialProtocol
 from loop import SoftRealtimeLoop
 from DataLogger import dataLogger
+from ps4_controller_api import PS4InputHandler
 
 FREQ = 200
 DT = 1/FREQ
@@ -14,15 +15,19 @@ DT = 1/FREQ
 RW = 0.048
 RK = 0.1210
 ALPHA = np.deg2rad(45)
-kp = 10
-ki = 0
-kd = 0
+kp = 6.5
+ki = 0.1
+kd = 0.15
 desired_x = 0
 desired_y = 0
 error_x_sum = 0
 error_y_sum = 0
 old_err_x = 0
 old_err_y = 0
+Tx_Max = 0.5
+Ty_Max = 0.5
+Tz_Max = 0.25
+JOYSTICK_SCALE = 32767
 
 def compute_motor_torques(Tx, Ty, Tz):
     
@@ -43,8 +48,22 @@ if __name__ == "__main__":
     filename = 'ROB311_Test%i' % trial_num
     dl = dataLogger(filename + '.txt')
 
+    # === Controller Initialization ===
+    # Create an instance of the PS4 controller handler
+    controller = PS4InputHandler(interface="/dev/input/js0")
+
+    # Start a separate thread to listen for controller inputs
+    controller_thread = threading.Thread(target=controller.listen, args=(10,))
+    controller_thread.daemon = True  # Ensures the thread stops with the main program
+    controller_thread.start()
+
+    print("PS4 Controller is active. Use thumbsticks and triggers to control torque.")
+
     ser_dev = SerialProtocol()
     register_topics(ser_dev)
+
+    ser_dev.serializer_dict[101] = [lambda bytes: np.frombuffer(bytes, dtype=mo_cmds_dtype), lambda data: data.tobytes()]
+    ser_dev.serializer_dict[121] = [lambda bytes: np.frombuffer(bytes, dtype=mo_states_dtype), lambda data: data.tobytes()]
 
     # Init serial
     serial_read_thread = Thread(target = SerialProtocol.read_loop, args=(ser_dev,), daemon=True)
@@ -71,6 +90,8 @@ if __name__ == "__main__":
     for t in SoftRealtimeLoop(dt=DT, report=True):
         try:
             states = ser_dev.get_cur_topic_data(121)[0]
+
+            signals = controller.get_signals()
         except KeyError as e:
             continue
 
@@ -123,9 +144,14 @@ if __name__ == "__main__":
         uiy = ki * error_y_sum *DT
         udy = kd * dedk_y
 
-        Tx = (upx + uix + udx) * -1
-        Ty = upy + uiy + udy
-        Tz = 0
+        #controller input
+        x_control = signals["left_thumbstick_x"] * Tx_Max
+        y_control = signals["left_thumbstick_y"] * Ty_Max
+        z_control = (signals["trigger_R2"] - signals["trigger_L2"]) * Tz_Max
+
+        Tx = ((upx + uix + udx + x_control) * -1)
+        Ty = upy + uiy + udy + y_control
+        Tz = 0 + z_control
 
         old_err_x = error_x
         old_err_y = error_y
@@ -136,6 +162,13 @@ if __name__ == "__main__":
         commands['motor_2_duty'] = T2
         commands['motor_3_duty'] = T3
         ser_dev.send_topic_data(101, commands)
+
+        #debug print
+        print(
+            f"Time: {t_now:.2f}s | Tx: {Tx:.2f}, Ty: {Ty:.2f}, Tz: {Tz:.2f} | "
+            f"T1: {T1:.2f}, T2: {T2:.2f}, T3: {T3:.2f} | "
+            f"x_control: {x_control:.2f}, y_control: {y_control:.2f} , z_control: {z_control:.2f}"
+            )
 
         #print (dpsi[0])
 
