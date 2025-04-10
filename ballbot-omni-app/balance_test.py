@@ -15,9 +15,12 @@ DT = 1/FREQ
 RW = 0.048
 RK = 0.1210
 ALPHA = np.deg2rad(45)
-kp = 6.5
-ki = 0.1
+
+#PID value
+kp = 11
+ki = 0.05
 kd = 0.15
+
 desired_x = 0
 desired_y = 0
 error_x_sum = 0
@@ -135,12 +138,12 @@ if __name__ == "__main__":
         dedk_y = (error_y - old_err_y) / DT
 
         #pid for x
-        upx = kp * theta_x
+        upx = kp * error_x * -1
         uix = ki * error_x_sum * DT
         udx = kd * dedk_x
 
         #pid for y
-        upy = kp * theta_y
+        upy = kp * error_y * -1
         uiy = ki * error_y_sum *DT
         udy = kd * dedk_y
 
@@ -149,9 +152,10 @@ if __name__ == "__main__":
         y_control = signals["left_thumbstick_y"] * Ty_Max
         z_control = (signals["trigger_R2"] - signals["trigger_L2"]) * Tz_Max
 
-        Tx = ((upx + uix + udx + x_control) * -1)
-        Ty = upy + uiy + udy + y_control
-        Tz = 0 + z_control
+        #balance PID
+        Tx = ((upx + uix + udx) * -1)
+        Ty = upy + uiy + udy
+        Tz = 0
 
         old_err_x = error_x
         old_err_y = error_y
