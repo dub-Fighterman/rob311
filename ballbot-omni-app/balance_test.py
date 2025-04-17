@@ -18,8 +18,8 @@ ALPHA = np.deg2rad(45)
 
 #PID value
 kp = 11
-ki = 0.05
-kd = 0.15
+ki = 0
+kd = 0.1
 
 desired_x = 0
 desired_y = 0
@@ -40,6 +40,13 @@ def compute_motor_torques(Tx, Ty, Tz):
 
 
     return T1, T2, T3
+
+def deadband(value, threshold):
+    if abs(value) < threshold:
+        return 0.0
+    return value
+
+
 
 def register_topics(ser_dev:SerialProtocol):
     # Mo :: Commands, States
@@ -87,8 +94,6 @@ if __name__ == "__main__":
 
     print('Beginning program!')
     i = 0
-
-   
    
     for t in SoftRealtimeLoop(dt=DT, report=True):
         try:
@@ -121,14 +126,13 @@ if __name__ == "__main__":
         """ 
 
         # Define variables for saving / analysis here - below you can create variables from the available states
-        theta_x = (states['theta_roll'])  
+        theta_x = (states['theta_roll'])
         theta_y = (states['theta_pitch'])
         theta_z = (states['theta_yaw'])
 
         dpsi[0] = states['dpsi_1']
         dpsi[1] = states['dpsi_2']
         dpsi[2] = states['dpsi_3']
-
 
         error_x = desired_x - theta_x
         error_y = desired_y - theta_y
@@ -147,18 +151,38 @@ if __name__ == "__main__":
         uiy = ki * error_y_sum *DT
         udy = kd * dedk_y
 
+        """
         #controller input
         x_control = signals["left_thumbstick_x"] * Tx_Max
         y_control = signals["left_thumbstick_y"] * Ty_Max
         z_control = (signals["trigger_R2"] - signals["trigger_L2"]) * Tz_Max
+        """      
 
+
+        if abs(upx + uix + udx) <=0.4 and abs(upy + uiy + udy) <= 0.4:
+            Tx_control = signals["left_thumbstick_x"] * Tx_Max
+            Ty_control = signals["left_thumbstick_y"] * Ty_Max
+            Tz_control = (signals["trigger_R2"] - signals["trigger_L2"]) * Tz_Max
+        else:
+            Tx_control = 0
+            Ty_control = 0
+            Tz_control = 0
+        
         #balance PID
-        Tx = ((upx + uix + udx) * -1)
-        Ty = upy + uiy + udy
-        Tz = 0
+        Tx_balance = ((upx + uix + udx) * -1)
+        Ty_balance = upy + uiy + udy
+        Tz_balance = 0
+
+        deadband_threshold = 0.15
+        Tx_balance = deadband(Tx_balance, deadband_threshold)
+        Ty_balance = deadband(Ty_balance, deadband_threshold)
 
         old_err_x = error_x
         old_err_y = error_y
+
+        Tx = Tx_balance + Tx_control
+        Ty = Ty_balance + Ty_control
+        Tz = 0 + Tz_control
 
         T1,T2,T3 = compute_motor_torques (Tx, Ty, Tz)
 
@@ -168,21 +192,30 @@ if __name__ == "__main__":
         ser_dev.send_topic_data(101, commands)
 
         #debug print
+        
         print(
             f"Time: {t_now:.2f}s | Tx: {Tx:.2f}, Ty: {Ty:.2f}, Tz: {Tz:.2f} | "
             f"T1: {T1:.2f}, T2: {T2:.2f}, T3: {T3:.2f} | "
-            f"x_control: {x_control:.2f}, y_control: {y_control:.2f} , z_control: {z_control:.2f}"
+            f"x_control: {Tx_control:.2f}, y_control: {Ty_control:.2f} , z_control: {Tz_control:.2f}"
             )
-
+        
+        '''
         #print (dpsi[0])
+        print(
+            f"Time: {t_now:.2f}s | upx: {upx:.2f}, uix: {uix:.2f}, udx: {udx:.2f} | "
+            f"upy: {upy:.2f}, uiy: {uiy:.2f}, udy: {udy:.2f} | "
+            )
+            '''
 
         # Construct the data matrix for saving - you can add more variables by replicating the format below
         #data = [i] + [t_now] + [theta_x] + [theta_y] + [theta_z] + [states['dpsi_1']] + [states['dpsi_2']] + [states['dpsi_3']]
         data = [i] + [t_now] + [upx] + [uix] + [udx] + [upy] + [uiy] + [udy]
+        #data = [i] + [t_now] + [Tx] + [Ty] + [T1] + [T2] + [T3]
         dl.appendData(data)
 
         ##if t_now > 15:
         ##    break
+
 
     commands['start'] = 0.0
     commands['motor_1_duty'] = 0.0
