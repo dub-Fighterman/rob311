@@ -8,6 +8,7 @@ from MBot.SerialProtocol.protocol import SerialProtocol
 from loop import SoftRealtimeLoop
 from DataLogger import dataLogger
 from ps4_controller_api import PS4InputHandler
+from collections import deque
 
 FREQ = 200
 DT = 1/FREQ
@@ -18,8 +19,8 @@ ALPHA = np.deg2rad(45)
 
 #PID value
 kp = 11
-ki = 0
-kd = 0.1
+ki = 0.05
+kd = 0.05
 
 desired_x = 0
 desired_y = 0
@@ -45,6 +46,14 @@ def deadband(value, threshold):
     if abs(value) < threshold:
         return 0.0
     return value
+
+#moving average filter
+ERROR_AVG_WINDOW = 5
+error_x_buffer = deque(maxlen=ERROR_AVG_WINDOW)
+error_y_buffer = deque(maxlen=ERROR_AVG_WINDOW)
+def moving_average(buffer, new_value):
+    buffer.append(new_value)
+    return sum(buffer) / len(buffer)
 
 
 
@@ -136,10 +145,18 @@ if __name__ == "__main__":
 
         error_x = desired_x - theta_x
         error_y = desired_y - theta_y
+        '''
+        raw_error_x = desired_x - theta_x
+        raw_error_y = desired_y - theta_y
+        error_x = moving_average(error_x_buffer, raw_error_x)
+        error_y = moving_average(error_y_buffer, raw_error_y)
+        '''
         error_x_sum = error_x_sum + error_x
         error_y_sum = error_y_sum + error_y
-        dedk_x = (error_x - old_err_x) / DT
-        dedk_y = (error_y - old_err_y) / DT
+        err_diff_x = error_x - old_err_x
+        err_diff_y = error_y - old_err_y
+        dedk_x = (moving_average(error_x_buffer, err_diff_x)) / DT
+        dedk_y = (moving_average(error_y_buffer, err_diff_y)) / DT
 
         #pid for x
         upx = kp * error_x * -1
@@ -164,7 +181,7 @@ if __name__ == "__main__":
         Tz_balance = 0
 
         #deadband filter
-        deadband_threshold = 0.15
+        deadband_threshold = 0.125
         Tx_balance = deadband(Tx_balance, deadband_threshold)
         Ty_balance = deadband(Ty_balance, deadband_threshold)
 
