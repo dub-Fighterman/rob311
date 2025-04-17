@@ -157,22 +157,13 @@ if __name__ == "__main__":
         y_control = signals["left_thumbstick_y"] * Ty_Max
         z_control = (signals["trigger_R2"] - signals["trigger_L2"]) * Tz_Max
         """      
-
-
-        if abs(upx + uix + udx) <=0.4 and abs(upy + uiy + udy) <= 0.4:
-            Tx_control = signals["left_thumbstick_x"] * Tx_Max
-            Ty_control = signals["left_thumbstick_y"] * Ty_Max
-            Tz_control = (signals["trigger_R2"] - signals["trigger_L2"]) * Tz_Max
-        else:
-            Tx_control = 0
-            Ty_control = 0
-            Tz_control = 0
         
         #balance PID
         Tx_balance = ((upx + uix + udx) * -1)
         Ty_balance = upy + uiy + udy
         Tz_balance = 0
 
+        #deadband filter
         deadband_threshold = 0.15
         Tx_balance = deadband(Tx_balance, deadband_threshold)
         Ty_balance = deadband(Ty_balance, deadband_threshold)
@@ -180,10 +171,22 @@ if __name__ == "__main__":
         old_err_x = error_x
         old_err_y = error_y
 
+        #steering trigger
+        if abs(Tx_balance) <=0.4 and abs(Ty_balance) <= 0.4:
+            Tx_control = signals["left_thumbstick_x"] * Tx_Max
+            Ty_control = signals["left_thumbstick_y"] * Ty_Max
+            Tz_control = (signals["trigger_R2"] - signals["trigger_L2"]) * Tz_Max
+        else:
+            Tx_control = 0
+            Ty_control = 0
+            Tz_control = 0
+
+        #balance + sterring
         Tx = Tx_balance + Tx_control
         Ty = Ty_balance + Ty_control
-        Tz = 0 + Tz_control
+        Tz = Tz_balance + Tz_control
 
+        #compute torque
         T1,T2,T3 = compute_motor_torques (Tx, Ty, Tz)
 
         commands['motor_1_duty'] = T1
